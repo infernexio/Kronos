@@ -30,6 +30,8 @@ def getProfileArguments(uuid, c2info):
             "callback_port": "",
             "callback_host": "",
             "post_uri": "",
+            "get_uri": "",
+            "query_path_name": "",
             "proxy_host": "",
             "proxy_port": "",
             "proxy_user": "",
@@ -56,6 +58,71 @@ def getProfileArguments(uuid, c2info):
         parameters["callback_interval"] = 5
         parameters["callback_jitter"] = 20
         parameters["callback_port"] = 1337
+
+    if profname == "websocket":
+        if "endpoint" in parameters and not parameters.get("post_uri"):
+            parameters["post_uri"] = parameters["endpoint"]
+        if "ENDPOINT_REPLACE" in parameters and not parameters.get("post_uri"):
+            parameters["post_uri"] = parameters["ENDPOINT_REPLACE"]
+        if "query_path_name" not in parameters:
+            parameters["query_path_name"] = ""
+
+        tasking_type = str(parameters.get("tasking_type", "Poll")).strip().lower()
+        accept_type = "Push" if tasking_type == "push" else "Poll"
+
+        if "headers" not in parameters or parameters["headers"] is None:
+            parameters["headers"] = {}
+
+        if isinstance(parameters["headers"], dict):
+            accept_key = None
+            for key in parameters["headers"].keys():
+                if str(key).lower() == "accept-type":
+                    accept_key = key
+                    break
+            if accept_key is None:
+                parameters["headers"]["Accept-Type"] = accept_type
+            else:
+                parameters["headers"][accept_key] = accept_type
+        elif isinstance(parameters["headers"], list):
+            updated_accept = False
+            for item in parameters["headers"]:
+                if isinstance(item, dict) and str(item.get("key", "")).lower() == "accept-type":
+                    item["value"] = accept_type
+                    updated_accept = True
+                    break
+            if not updated_accept:
+                parameters["headers"].append({"key": "Accept-Type", "value": accept_type})
+
+        if "USER_AGENT" in parameters and parameters["USER_AGENT"]:
+            if "headers" not in parameters or parameters["headers"] is None:
+                parameters["headers"] = {}
+
+            if isinstance(parameters["headers"], dict):
+                has_user_agent = any(str(k).lower() == "user-agent" for k in parameters["headers"].keys())
+                if not has_user_agent:
+                    parameters["headers"]["User-Agent"] = parameters["USER_AGENT"]
+            elif isinstance(parameters["headers"], list):
+                has_user_agent = any(str(item.get("key", "")).lower() == "user-agent" for item in parameters["headers"] if isinstance(item, dict))
+                if not has_user_agent:
+                    parameters["headers"].append({"key": "User-Agent", "value": parameters["USER_AGENT"]})
+
+        host_header_val = None
+        for host_key in ["host_header", "HostHeader", "HOSTHEADER"]:
+            if host_key in parameters and parameters[host_key]:
+                host_header_val = parameters[host_key]
+                break
+
+        if host_header_val:
+            if "headers" not in parameters or parameters["headers"] is None:
+                parameters["headers"] = {}
+            if isinstance(parameters["headers"], dict):
+                has_host = any(str(k).lower() == "host" for k in parameters["headers"].keys())
+                if not has_host:
+                    parameters["headers"]["Host"] = host_header_val
+            elif isinstance(parameters["headers"], list):
+                has_host = any(str(item.get("key", "")).lower() == "host" for item in parameters["headers"] if isinstance(item, dict))
+                if not has_host:
+                    parameters["headers"].append({"key": "Host", "value": host_header_val})
     
 
     for c2 in c2info:
@@ -66,6 +133,9 @@ def getProfileArguments(uuid, c2info):
                     stdout_err += "Setting {} to {}".format(key, val["enc_key"])
                     special_files_map[mainCodeFile][key] = val["enc_key"] if val["enc_key"] is not None else ""
                     special_files_map["useEncryption"] = True if val["enc_key"] is not None else False
+                elif key == "headers":
+                    for header_key, header_value in val.items():
+                        extra_variables[header_key] = header_value
                 else:
                     stdout_err += f"Unhandled Dict: {val}"
             elif isinstance(val, list):
@@ -92,7 +162,7 @@ class Kronos(PayloadType):
     wrapped_payloads = []
     note = """This Payload uses the Nim language"""
     supports_dynamic_loading = True
-    c2_profiles = ["http", "smb"]
+    c2_profiles = ["http", "websocket", "smb"]
     mythic_encrypts = True
     translation_container = None # "myPythonTranslation"
     build_parameters = [
@@ -212,6 +282,8 @@ class Kronos(PayloadType):
 
         if profile["name"] == "smb":
             flags += "-d:PROFILE_SMB "
+        elif profile["name"] == "websocket":
+            flags += "-d:PROFILE_WEBSOCKET "
 
         if useDynSyscalls:
             flags += "-d:DYNSYSCALLS "

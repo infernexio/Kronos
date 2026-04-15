@@ -106,7 +106,7 @@ class LsCommand(CommandBase):
     version = 3
     supported_ui_features = ["file_browser:list"]
     author = "@mariusschwarz"
-    argument_class = LsArguments
+    argument_class = LsSharesArguments
     attackmapping = ["T1106", "T1083"]
     browser_script = BrowserScript(script_name="ls", author="@mariusschwarz", for_new_ui=True)
 

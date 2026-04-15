@@ -8,6 +8,8 @@ import utils
 
 when defined(PROFILE_SMB):
   import profiles/smb as profile
+elif defined(PROFILE_WEBSOCKET):
+  import profiles/websocket as profile
 else:
   import profiles/http as profile
 

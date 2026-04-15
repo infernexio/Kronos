@@ -16,6 +16,7 @@ outputTypesPrint = {
 profiles = {
         "http": "PROFILE_HTTP",
         "smb": "PROFILE_SMB",
+        "websocket": "PROFILE_WEBSOCKET",
 }
 
 
