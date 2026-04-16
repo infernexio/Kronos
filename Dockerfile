@@ -14,6 +14,7 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN pip install requests
+RUN pip install --no-cache-dir --upgrade mythic-container==0.6.16
 
 ENV PATH="${PATH}:/root/.nimble/bin"
 RUN nimble -y install winim
