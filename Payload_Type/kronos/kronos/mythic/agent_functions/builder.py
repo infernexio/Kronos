@@ -155,21 +155,21 @@ def getProfileArguments(uuid, c2info):
 
 class Kronos(PayloadType):
     name = "kronos"
-    file_extension = "exe"
+    file_extension = "bin"
     author = "@mariusschwarz"
-    supported_os = [SupportedOS.Windows]
+    supported_os = [SupportedOS.Windows, SupportedOS.Linux, SupportedOS.MacOS]
     wrapper = False
     wrapped_payloads = []
     note = """This Payload uses the Nim language"""
     supports_dynamic_loading = True
-    c2_profiles = ["http", "websocket", "smb"]
+    c2_profiles = ["http", "websocket"]
     mythic_encrypts = True
     translation_container = None # "myPythonTranslation"
     build_parameters = [
             BuildParameter(
                 name = "output_type",
                 parameter_type=BuildParameterType.ChooseOne,
-                choices=["WinExe", "DLL", "Shellcode"],
+                choices=["WinExe", "DLL", "Shellcode", "LinuxBin", "MacOSBin"],
                 default_value="WinExe",
                 description="Select the output type of the agent"
             ),
@@ -285,7 +285,11 @@ class Kronos(PayloadType):
         elif profile["name"] == "websocket":
             flags += "-d:PROFILE_WEBSOCKET "
 
-        if useDynSyscalls:
+        output_type = self.get_parameter('output_type')
+
+        is_windows_target = output_type in ["WinExe", "DLL", "Shellcode"]
+
+        if useDynSyscalls and is_windows_target:
             flags += "-d:DYNSYSCALLS "
     
         # setup the usage of encryption for the compilation
@@ -293,7 +297,7 @@ class Kronos(PayloadType):
             flags += "-d:ENCRYPT_TRAFFIC "
 
         # when the console should be hidden
-        if self.get_parameter('hide_console'):
+        if self.get_parameter('hide_console') and is_windows_target:
             flags += "-d:HIDE_CONSOLE "
 
         if buildAsDebug:
@@ -303,17 +307,33 @@ class Kronos(PayloadType):
         else:
             flags += "-d:release --passc=-flto --passl=-flto -d:danger -d:strip --opt:size "
 
-        base_cmd = f"nim c --gc:arc --cpu=amd64 -d:mingw"
+        if output_type in ["WinExe", "DLL", "Shellcode"]:
+            base_cmd = "nim c --gc:arc --cpu=amd64 -d:mingw"
+        elif output_type == "LinuxBin":
+            base_cmd = "nim c --gc:arc --cpu=amd64"
+        elif output_type == "MacOSBin":
+            base_cmd = "nim c --gc:arc --cpu=amd64"
+        else:
+            base_cmd = "nim c --gc:arc --cpu=amd64 -d:mingw"
+
         output_path = ""
 
-        if self.get_parameter('output_type') == "DLL":
+        if output_type == "DLL":
             command = f"{base_cmd} --app=lib --nomain -o:kronos.dll {flags} mainLib.nim"
             output_path = "{}/kronos.dll".format(build_path)
             file_extension = "dll"
-        elif self.get_parameter('output_type') == "WinExe":
+        elif output_type == "WinExe":
             command = f"{base_cmd} --app=console -o:kronos.exe {flags} main.nim"
             output_path = "{}/kronos.exe".format(build_path)
             file_extension = "exe"
+        elif output_type == "LinuxBin":
+            command = f"{base_cmd} --app=console -o:kronos {flags} main.nim"
+            output_path = "{}/kronos".format(build_path)
+            file_extension = ""
+        elif output_type == "MacOSBin":
+            command = f"{base_cmd} --app=console -o:kronos {flags} main.nim"
+            output_path = "{}/kronos".format(build_path)
+            file_extension = ""
 
 
         proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr= asyncio.subprocess.PIPE, cwd=build_path)

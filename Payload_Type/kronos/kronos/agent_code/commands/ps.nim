@@ -1,80 +1,101 @@
-# This is the source for the CAT command
 import ../structs
 import ../utils
-import ../rth/utils/winapi_wrapper
 import json
-import winim
-import std/tables
 
-type
-  ProcessInfo = object
-    process_id: int
-    host: string
-    architecture: string
-    bin_path: string
-    commmand_line: string
-    #company_name: string
-    name: string
-    description: string
-    integrity_level: int
-    parent_process_id: int
-    #session_id: int
-    #start_time: string
-    user: string
-    signer: string
-    #window_title: string
+when defined(windows):
+  import ../rth/utils/winapi_wrapper
+  import winim
+  import std/tables
+else:
+  from osproc import execProcess
+  import std/strutils
+
+when defined(windows):
+  type
+    ProcessInfo = object
+      process_id: int
+      host: string
+      architecture: string
+      bin_path: string
+      commmand_line: string
+      name: string
+      description: string
+      integrity_level: int
+      parent_process_id: int
+      user: string
+      signer: string
 
 
-#[
-Shows a table of all running
-processes
-
-  No Parameters
-
-]#
 proc cmd_ps*(task: Task): seq[TaskResponse] {.cdecl.} =
+  when defined(windows):
+    var
+      output = ""
+      entry: PROCESSENTRY32
+      hSnapshot: HANDLE
 
-  # Configure Output
-  var
-    output = ""
-    # Required for the main code
-    entry: PROCESSENTRY32
-    hSnapshot: HANDLE
+    var processList: seq[ProcessInfo]
 
-  var processList: seq[ProcessInfo]
+    entry.dwSize = cast[DWORD](sizeof(PROCESSENTRY32))
+    hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    defer: CloseHandle(hSnapshot)
 
+    if Process32First(hSnapshot, addr entry):
+      while Process32Next(hSnapshot, addr entry):
+        var pInfo = ProcessInfo()
+        pInfo.name = entry.szExeFile.toString
+        pInfo.process_id = cast[int](entry.th32ProcessID)
+        pInfo.parent_process_id = cast[int](entry.th32ParentProcessID)
 
-  entry.dwSize = cast[DWORD](sizeof(PROCESSENTRY32))
-  hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-  defer: CloseHandle(hSnapshot)
+        DBG(entry.szExeFile.toString)
 
+        var pHandle = wOpenProcess(cast[DWORD](PROCESS_QUERY_LIMITED_INFORMATION), false, entry.th32ProcessID)
 
-  if Process32First(hSnapshot, addr entry):
+        if pHandle == 0:
+          processList.add(pInfo)
+          continue
 
-    while Process32Next(hSnapshot, addr entry):
-      var pInfo = ProcessInfo()
-      pInfo.name = entry.szExeFile.toString
-      pInfo.process_id = cast[int](entry.th32ProcessID)
-      pInfo.parent_process_id = cast[int](entry.th32ParentProcessID)
+        pInfo.architecture = getArchitecture(pHandle)
+        pInfo.user = getProcessOwner(pHandle)
+        pInfo.integrity_level = getIntegrityLevel(pHandle)
+        pInfo.host = getHost()
 
-      DBG(entry.szExeFile.toString)
-
-      var pHandle = wOpenProcess(cast[DWORD](PROCESS_QUERY_LIMITED_INFORMATION), false, entry.th32ProcessID)
-
-      if pHandle == 0:
         processList.add(pInfo)
-        continue
 
-      pInfo.architecture = getArchitecture(pHandle)
-      pInfo.user = getProcessOwner(pHandle)
-      pInfo.integrity_level = getIntegrityLevel(pHandle)
-      pInfo.host = getHost()
+    output = $(%*{"processes": process_list}.toTable)
+    return buildReturnData(task.id, output)
+  else:
+    var status = ""
+    try:
+      let raw = execProcess("ps -eo pid,ppid,user,comm")
+      let lines = raw.splitLines()
+      var processes = newSeq[JsonNode]()
 
-      processList.add(pInfo)
+      for idx in 0..<lines.len:
+        let line = lines[idx].strip()
+        if line.len == 0 or idx == 0:
+          continue
 
-  output = $(%*{"processes": process_list}.toTable)
-  #output = $(%*process_List)
+        let parts = line.splitWhitespace()
+        if parts.len < 4:
+          continue
 
-  # return the response
-  return buildReturnData(task.id, output)
+        let pid = parseInt(parts[0])
+        let ppid = parseInt(parts[1])
+        let user = parts[2]
+        let name = parts[3..^1].join(" ")
 
+        processes.add(%*{
+          "process_id": pid,
+          "parent_process_id": ppid,
+          "user": user,
+          "name": name,
+          "host": getHost(),
+          "architecture": getArchitecture(nil),
+          "integrity_level": getIntegrityLevel(nil)
+        })
+
+      let output = $(%*{"processes": processes})
+      return buildReturnData(task.id, output, status)
+    except:
+      status = "error"
+      return buildReturnData(task.id, "", status)

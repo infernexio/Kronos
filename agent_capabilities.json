@@ -1,5 +1,5 @@
 {
-  "os": ["Windows"],
+  "os": ["Windows", "Linux", "macOS"],
   "languages": ["Nim"],
   "features": {
     "mythic": [
@@ -25,9 +25,9 @@
       "lateral movement"
     ]
   },
-  "payload_output": ["exe", "dll", "shellcode"],
+  "payload_output": ["exe", "dll", "shellcode", "elf", "macho"],
   "architectures": ["x86_64"],
-  "c2": ["http", "websocket", "smb"],
+  "c2": ["http", "websocket"],
   "mythic_version": "3.4.6",
   "agent_version": "1.0.0",
   "supported_wrappers": []

