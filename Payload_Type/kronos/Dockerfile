@@ -1,4 +1,4 @@
-FROM itsafeaturemythic/mythic_python_base:latest
+FROM ghcr.io/its-a-feature/mythic_python_base:v3.4.0.41
 
 RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -14,7 +14,6 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN pip install requests
-RUN pip install mythic-container==0.6.6
 
 ENV PATH="${PATH}:/root/.nimble/bin"
 RUN nimble -y install winim
