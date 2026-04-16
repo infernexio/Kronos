@@ -1,4 +1,4 @@
-FROM ghcr.io/its-a-feature/mythic_python_base:v3.4.0.41
+FROM itsafeaturemythic/mythic_python_base:latest
 
 RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
