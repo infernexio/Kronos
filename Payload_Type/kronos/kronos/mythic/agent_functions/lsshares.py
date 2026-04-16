@@ -98,10 +98,10 @@ class LsSharesArguments(TaskArguments):
 
 
 
-class LsCommand(CommandBase):
-    cmd = "ls"
+class LsSharesCommand(CommandBase):
+    cmd = "lsshares"
     needs_admin = False
-    help_cmd = "ls [path]"
+    help_cmd = "lsshares [path]"
     description = "List files and folders in a specified directory (defaults to your current working directory.)"
     version = 3
     supported_ui_features = ["file_browser:list"]
