@@ -9,7 +9,7 @@ import os,fnmatch,tempfile,asyncio
 
 # Most of the stuff is shamelessly stolen from the Apollo builder file
 # Ref: https://github.com/MythicAgents/Apollo/blob/master/Payload_Type/apollo/mythic/agent_functions/builder.py)
-def get_nim_files(base_path: str) -> [str]:
+def get_nim_files(base_path: str) -> list[str]:
     results = []
     for root, dirs, files in os.walk(base_path):
         for name in files:
@@ -308,13 +308,13 @@ class Kronos(PayloadType):
             flags += "-d:release --passc=-flto --passl=-flto -d:danger -d:strip --opt:size "
 
         if output_type in ["WinExe", "DLL", "Shellcode"]:
-            base_cmd = "nim c --gc:arc --cpu=amd64 -d:mingw"
+            base_cmd = "nim c --gc:arc --cpu=amd64 --os:windows -d:mingw"
         elif output_type == "LinuxBin":
-            base_cmd = "nim c --gc:arc --cpu=amd64"
+            base_cmd = "nim c --gc:arc --cpu=amd64 --os:linux"
         elif output_type == "MacOSBin":
-            base_cmd = "nim c --gc:arc --cpu=amd64"
+            base_cmd = "nim c --gc:arc --cpu=amd64 --os:macosx"
         else:
-            base_cmd = "nim c --gc:arc --cpu=amd64 -d:mingw"
+            base_cmd = "nim c --gc:arc --cpu=amd64 --os:windows -d:mingw"
 
         output_path = ""
 
@@ -355,6 +355,11 @@ class Kronos(PayloadType):
             resp.status = BuildStatus.Success
             resp.message = "[+] Payload build successfully"
             resp.build_stderr = stdout_err
+            base_name = os.path.splitext(self.filename)[0]
+            if file_extension:
+                resp.updated_filename = f"{base_name}.{file_extension}"
+            else:
+                resp.updated_filename = base_name
             step_success = True
         else:
             resp.status = BuildStatus.Error
