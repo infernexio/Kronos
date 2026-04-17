@@ -286,6 +286,15 @@ class Kronos(PayloadType):
             flags += "-d:PROFILE_WEBSOCKET "
 
         output_type = self.get_parameter('output_type')
+        selected_os = (self.selected_os or "").upper()
+
+        if output_type == "WinExe":
+            if selected_os == "LINUX":
+                output_type = "LinuxBin"
+                resp.build_message += "\n[+] Auto-selected LinuxBin because Selected OS is Linux"
+            elif selected_os == "MACOS":
+                output_type = "MacOSBin"
+                resp.build_message += "\n[+] Auto-selected MacOSBin because Selected OS is MacOS"
 
         is_windows_target = output_type in ["WinExe", "DLL", "Shellcode"]
 
@@ -308,13 +317,17 @@ class Kronos(PayloadType):
             flags += "-d:release --passc=-flto --passl=-flto -d:danger -d:strip --opt:size "
 
         if output_type in ["WinExe", "DLL", "Shellcode"]:
-            base_cmd = "nim c --gc:arc --cpu=amd64 --os:windows -d:mingw"
+            base_cmd = "nim c --gc:arc --cpu=amd64 --os:windows -d:mingw --gcc.exe:x86_64-w64-mingw32-gcc"
         elif output_type == "LinuxBin":
             base_cmd = "nim c --gc:arc --cpu=amd64 --os:linux"
         elif output_type == "MacOSBin":
+            if shutil.which("o64-clang") is None and shutil.which("x86_64-apple-darwin20-clang") is None:
+                resp.status = BuildStatus.Error
+                resp.build_message += "\nmacOS cross-compilation toolchain is not installed in this container. Install osxcross (o64-clang) or build on macOS."
+                return resp
             base_cmd = "nim c --gc:arc --cpu=amd64 --os:macosx"
         else:
-            base_cmd = "nim c --gc:arc --cpu=amd64 --os:windows -d:mingw"
+            base_cmd = "nim c --gc:arc --cpu=amd64 --os:windows -d:mingw --gcc.exe:x86_64-w64-mingw32-gcc"
 
         output_path = ""
 
