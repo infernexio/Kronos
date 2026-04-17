@@ -137,8 +137,11 @@ proc getHost*(): string =
   when defined(windows):
     return getEnv("COMPUTERNAME")
   else:
-    let h = getHostname()
-    return if h.len > 0: h else: "localhost"
+    let h = getEnv("HOSTNAME")
+    if h.len > 0:
+      return h
+    let h2 = getEnv("HOST")
+    return if h2.len > 0: h2 else: "localhost"
 
 
 # Return the Process Integrity
